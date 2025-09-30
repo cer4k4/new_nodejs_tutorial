@@ -17,5 +17,10 @@
   "bugs": {
     "url": "https://github.com/cer4k4/nodejs_tutorial/issues"
   },
-  "homepage": "https://github.com/cer4k4/nodejs_tutorial#readme"
+  "homepage": "https://github.com/cer4k4/nodejs_tutorial#readme",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "joi": "^18.0.1",
+    "jsonwebtoken": "^9.0.2"
+  }
 }
