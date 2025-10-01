@@ -49,11 +49,19 @@ async function validateLoginUser(user)
 async function givePayload(req,res,next) {
     try{
         token = req.get("Authorization")
+        if (!token) {
+            res.status(400).send({"error":
+                {
+                    "name": "Authorization token",
+                    "message": "token is nill"
+                }
+                })
+        }
         const payload = jwt.verify(token, secretKey);
         req["payload"] = payload
-        next()
+            return next()
     } catch (err) {
-        next(err)
+        res.status(400).send({"error":err})
     }
 }
 

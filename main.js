@@ -2,7 +2,6 @@ const express = require("express");
 const mongoose = require("mongoose");
 const config = require("./config/config.js");
 const baseRouter = require("./routes/baseRouter.js")
-
 const server = express();
 server.use(express.json());
 server.use("/", baseRouter)
