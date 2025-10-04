@@ -1,17 +1,16 @@
 const userRouter= require("express").Router()
 const userController = require("../controllers/user")
-const usermiddleware = require("../middleware/user.validate")
-const rolemiddleware = require("../middleware/role.validate")
+const middleware = require("../middleware/authentication_authorization")
 
-userRouter.post("/create",usermiddleware.givePayload,rolemiddleware.checkPermission, userController.registerUser)
+userRouter.post("/create",userController.registerUser)
 
-userRouter.get("/byId/:id", usermiddleware.givePayload,rolemiddleware.checkPermission,userController.getUser)
+userRouter.get("/byId/:userId", middleware.authentication,middleware.authorization,userController.getUser)
 
-userRouter.get("/list",usermiddleware.givePayload,rolemiddleware.checkPermission,userController.allUser)
+userRouter.get("/list/:page/:limit",middleware.authentication,middleware.authorization,userController.allUser)
 
-userRouter.patch("/update/:id",usermiddleware.givePayload,rolemiddleware.checkPermission,userController.updateUser)
+userRouter.patch("/update/:userId",middleware.authentication,middleware.authorization,userController.updateUser)
 
-userRouter.delete("/delete/:id",usermiddleware.givePayload,rolemiddleware.checkPermission,userController.deleteUser)
+userRouter.delete("/delete/:userId",middleware.authentication,middleware.authorization,userController.deleteUser)
 
 userRouter.post("/login",userController.loginUser)
 
