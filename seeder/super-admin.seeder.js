@@ -6,7 +6,7 @@ async function superAdminSeeder(adminUsername, adminPassword) {
   const adminFound = await UserModel.findOne({username: adminUsername, role: "admin" });
   if (!adminFound) {
     try {
-  const hashedPassword= hash(adminPassword, 10)
+      const hashedPassword = await hash(adminPassword, 10)
       const newUser = await UserModel.create({
         username: adminUsername,
         password: hashedPassword,

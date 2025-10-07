@@ -1,20 +1,23 @@
 const UserModel = require("../models/user.schema");
+const responseWriter = require("../utils/responseInterface");
 const Validate = require("../middleware/validator");
 const auth = require("../middleware/authentication_authorization");
+const ROLES = require("../models/enum")
 const { hash, compare } = require("bcrypt");
 
 async function registerUser(req, res) {
   try {
     const resultOfUserValidation = await Validate.requestValidator('registerUser',req.body);
     if (resultOfUserValidation.error) {
-      return res.status(400).json({"error" : resultOfUserValidation.error });
+      const response = await responseWriter(false,res.status(400)["statusCode"],{},resultOfUserValidation.error.message)
+      return res.status(400).json(response);
     }
     const username = req.body.username;
     const userFound = await UserModel.findOne({username});
     if (userFound) {
-      return res.status(400).json({"error" : "username is existed" });
+      const response = await responseWriter(false,res.status(400)["statusCode"],{},"username is existed")
+      return res.status(400).json(response);
     }
-    
     const fullName = req.body.fullName;
     const password = req.body.password;
     const hashedPassword = await hash(password, 10);
@@ -23,67 +26,109 @@ async function registerUser(req, res) {
       fullName,
       password: hashedPassword,
     });
-    res.status(201).json({user: {username: newUser.username, fullName: newUser.fullName, role: newUser.role}});
+
+    const response = await responseWriter(true,res.status(201)["statusCode"],{username: newUser.username, fullName: newUser.fullName, role: newUser.role},"user is created")
+    return res.status(201).json(response);
   } catch ({error}) {
-    res.status(500).send({ error });
+    const response = await responseWriter(false,res.status(500)["statusCode"],{},"user is not created")
+    res.status(500).send(response);
   }
 }
 
 async function updateUser(req, res) {
   try {
-    id = req.params["id"];
-    const resultOfUserId = await Validate.validateUserId(id);
-    if (resultOfUserId.error.message) {
-      return res.status(400).json({"error" : resultOfUserId.error.message });
+    const userid = req.params["userId"];
+    const resultOfUserId = await Validate.requestValidator("getById",userid);
+    if (resultOfUserId.error) {
+      const response = await responseWriter(false,res.status(400)["statusCode"],{},resultOfUserId.error.message)
+      return res.status(400).json(response);
     }
     const updateData = req.body;
-    const resultOfUserValidation = await Validate.requestValidator("registerUser",updateData);
+    const resultOfUserValidation = await Validate.requestValidator("updateUser",updateData);
     if (resultOfUserValidation.error) {
-      return res.status(400).json({"error" : resultOfUserValidation.error.message });
+      const response = await responseWriter(false,res.status(400)["statusCode"],{},resultOfUserValidation.error.message )
+      return res.status(400).json(response);
     }
-    const user = await UserModel.findById(id);
-    if (!user) {
-      res.status(200).send({ user: "user not found" });
+    const user = await UserModel.findById(userid)
+    if (req['user'].role !== 'admin' && req['user'].username !== user.username) {
+      const response = await responseWriter(false,res.status(403)["statusCode"],{},"you don't have permission to change this user")
+      return res.status(403).json(response);      
     }
-    const isPasswordCorrect = UserModel.compairePassword(
-      body.password,
-      user.password
-    );
-    if (!isPasswordCorrect) {
-      return res.status(200).send({ error: "password is incorecet" });
+    if (req.body.newPassword) {
+      if (! await compare(req.body.password,user.password)) {
+        const response = await responseWriter(false,res.status(400)["statusCode"],{},"the username or password is wrong")
+        return res.status(400).json(response);
+      }
+      const hashedPassword = await hash(req.body.newPassword, 10);
+      user.password = hashedPassword
     }
-    const result = await UserModel.updateOne({ _id: id }, { $set: updateData });
+    if (req.body.username){
+      const userFound = await UserModel.findOne({username:req.body.username});
+      if (userFound) {
+        const response = await responseWriter(false,res.status(400)["statusCode"],{},"change the username is this username is taken by another user")
+        return res.status(400).json(response);
+      }
+      user.username = req.body.username
+    }
+    if (req.body.role){
+      if (req['user'].role !== 'admin') {
+        const response = await responseWriter(false,res.status(403)["statusCode"],{},"you don't have permission to change role")
+        return res.status(403).json(response);
+      }
+      if (! await checkRoles(req.body.role)){
+        const response = await responseWriter(false,res.status(404)["statusCode"],{},"this role is not definde")
+        return res.status(404).json(response);
+      }
+      user.role = req.body.role
+    }
+    user.fullName = req.body.fullName
+    const result = await UserModel.updateOne({ _id: userid }, { $set: user});
     if (result.matchedCount === 0) {
-      return res.send({ error: "User not found" });
+      const response = await responseWriter(false,res.status(404)["statusCode"],{},"User not found")
+      return res.status(404).send(response);
     } else {
-      res.status(200).send({ message: "User updated successfully", result });
+      const response = await responseWriter(true,res.status(200)["statusCode"],result,"User updated successfully")
+      res.status(200).send(response);
     }
   } catch (err) {
     console.error(err);
-    res.status(500).send({ error: "Internal Server Error" });
+    const response = await responseWriter(false,res.status(500)["statusCode"],{},err.message)
+    res.status(500).send(response);
   }
 }
 
 async function allUser(req, res) {
   try {
-    const limit = req.params['limit'];
-    const resultOfLimit = await Validate.requestValidator("limit", limit);
-    if (resultOfLimit.error) {
-      return res.status(400).json({"error" : resultOfLimit.error.message });
+    const limit = Number(req.params['limit']);
+    if (!limit || limit <= 0){
+      limit += Number(10)
     }
-    const page = req.params['page'];
+    const resultOfLimit = await Validate.requestValidator("limit", limit);
+
+    if (resultOfLimit.error) {
+      const response = await responseWriter(false,res.status(400)["statusCode"],{},resultOfLimit.error.message)
+      return res.status(400).json(response);
+    }
+    const page = Number(req.params['page'])
+    if (!page || page <= 0){
+      page += Number()
+    }
     const resultOfPage = await Validate.requestValidator("page", page);
     if (resultOfPage.error) {
-      return res.status(400).json({"error" : resultOfPage.error.message });
+      const response = await responseWriter(false,res.status(400)["statusCode"],{},resultOfPage.error.message )
+      return res.status(400).json(response);
     }
     const offset = (page - 1) * limit;
 
-    const allUsers = await UserModel.find({}).skip(page).limit(limit);
+    const allUsers = await UserModel.find({}).skip(offset).limit(limit);
+
     const users = await UserModel.usersResponse(allUsers)
-    res.status(200).send({ users });
+    const response = await responseWriter(true,res.status(200)["statusCode"],users,"successful get all users" )
+    return res.status(200).send(response);
   } catch (err) {
     console.error(err);
-    res.status(500).send({ error: "Internal Server Error" });
+    const response = await responseWriter(false,res.status(500)["statusCode"],{},err.message)
+    res.status(500).send(response);
   }
 }
 
@@ -92,17 +137,20 @@ async function getUser(req, res) {
     id = req.params["userId"];
     const resultOfUserId = await Validate.requestValidator("getById", id);
     if (resultOfUserId.error) {
-      return res.status(400).json({"error" : resultOfUserId.error.message });
+      const response = await responseWriter(false,res.status(400)["statusCode"],{},resultOfUserId.error.message)
+      return res.status(400).json(response);
     }
     const user = await UserModel.findById(id);
     if (!user) {
-      res.status(404).send({ user: "user not found" });
+      const response = await responseWriter(false,res.status(404)["statusCode"],{},"user not found")
+      return res.status(404).send(response);
     } else {
-      res.status(200).send({ user });
+      const response = await responseWriter(true,res.status(200)["statusCode"],user,"successful get user")
+      return res.status(200).send(response);
     }
   } catch (err) {
-    console.error(err);
-    res.status(500).send({ error: "Internal Server Error" });
+    const response = await responseWriter(false,res.status(500)["statusCode"],{},err.message)
+    res.status(500).send(response);
   }
 }
 
@@ -111,16 +159,20 @@ async function deleteUser(req, res) {
     id = req.params["userId"];
     const resultOfUserId = await Validate.requestValidator("getById", id);
     if (resultOfUserId.error) {
-      return res.status(400).json({"error" : resultOfUserId.error.message });
+      const response = await responseWriter(false,res.status(400)["statusCode"],{},resultOfUserId.error.message)
+      return res.status(400).json(response);
     }
     const user = await UserModel.findByIdAndDelete(id);
     if (user === null) {
-      res.status(404).send({ error: "user not found" });
+      const response = await responseWriter(false,res.status(404)["statusCode"],{},"user not found")
+      return res.status(404).send(response);
     } else {
+      const response = await responseWriter(true,res.status(200)["statusCode"],user,"user is deleted")
       const user = await UserModel.userResponse(user)
-      res.status(200).send({ error: "user is deleted", user});
+      return res.status(200).send(response);
     }
   } catch (error) {
+    const response = await responseWriter(false,res.status(500)["statusCode"],{},err.message)
     res.status(500).send({ error });
   }
 }
@@ -131,24 +183,37 @@ async function loginUser(req, res) {
     const password = req.body.password;
     const resultOfLoginValidation = await Validate.requestValidator("loginUser",req.body);
     if (resultOfLoginValidation.error) {
-      return res.status(400).json({"error" : resultOfLoginValidation.error.message });
+      const response = await responseWriter(false,res.status(400)["statusCode"],{},resultOfLoginValidation.error.message)
+      return res.status(400).json(response);
     }
     const userFound = await UserModel.findOne({username});
     if (!userFound) {
-      res.status(404).json({"error" : "the user not Founded" });
+      const response = await responseWriter(false,res.status(404)["statusCode"],{},"the user not Founded")
+      return res.status(404).json(response);
     }
-
-    if (!compare(password,userFound.password)) {
-      res.status(400).json({"error" : "the username or password is wrong" });
+    if ( ! await compare(password,userFound.password)) {
+      const response = await responseWriter(false,res.status(400)["statusCode"],{},"the username or password is wrong")
+      return res.status(400).json(response);
     }
-
-    const result = await auth.generateToken(userFound);
-    return res.send({result});
+    const response = await responseWriter(true,res.status(200)["statusCode"],await auth.generateToken(userFound),"successful login, wellcome to our system")
+    return res.send(response);
 
   } catch (error) {
     console.log(error)
-    return res.send({ error });
+    const response = await responseWriter(false,res.status(500)["statusCode"],{},error.message)
+    return res.send(response);
   }
+}
+
+
+
+async function checkRoles(role) {
+  for (r in ROLES){
+    if (role === ROLES[r]) {
+      return true
+    }
+  }
+  return false
 }
 
 module.exports = {

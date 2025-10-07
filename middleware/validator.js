@@ -30,7 +30,26 @@ async function requestValidator(schemaName,request)
         }).options({ abortEarly: false });
         return UserSchema.validate(request)
     }
-    
+    if (schemaName === 'updateUser') {
+        const UserSchema = Joi.object({
+            username: Joi.string()
+                      .min(5)
+                      .max(30),
+            fullName: Joi.string()
+                      .min(3)
+                      .max(90),
+            password: Joi.string()
+                      .min(6)
+                      .max(20),
+            newPassword: Joi.string()
+                      .min(6)
+                      .max(20),
+            role: Joi.string()
+        }).options({ abortEarly: false });
+        return UserSchema.validate(request)
+    }
+
+
     if (schemaName === 'loginUser') {
         const UserSchema = Joi.object({
             username: Joi.string()
@@ -46,10 +65,10 @@ async function requestValidator(schemaName,request)
 
     if (schemaName === 'getById') {
         const UserSchema = Joi.object({
-        id: Joi.string()
+        userId: Joi.string()
         .required(),
         }).options({ abortEarly: false });
-        return UserSchema.validate({id:request})
+        return UserSchema.validate({userId:request})
     }
 }
 

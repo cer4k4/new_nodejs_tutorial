@@ -22,7 +22,6 @@ UserModel.usersResponse = async function(usersDB) {
   for (u in usersDB) {
     users.push({username:usersDB[u].username,fullName:usersDB[u].fullName,role:usersDB[u].role})
   }
-
   return users
 }
 
